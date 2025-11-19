@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: resume-analyzer-docker
+    env: docker
+    branch: main
+    plan: starter
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: DEV_RELOAD
+        value: "false"
+# If you prefer Docker (recommended when OCR is required), comment out the
+# python service above and add a docker service entry. Render will build your
+# Dockerfile and the container should expose and listen on the provided $PORT.
+
+# Example Docker entry (commented):
+# services:
+#   - type: web
+#     name: resume-analyzer-docker
+#     env: docker
+#     branch: main
+#     plan: starter
