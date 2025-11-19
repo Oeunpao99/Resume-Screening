@@ -1,4 +1,4 @@
-# app.py - ENHANCED JSON STRUCTURE VERSION (Render Compatible)
+# app.py - PURE PYTHON RESUME ANALYZER (Render Compatible)
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -32,7 +32,7 @@ class ResumeAnalysisResponse(BaseModel):
     error: Optional[str] = None
 
 def extract_text_from_pdf(file_path: str) -> str:
-    """Extract text from PDF using pdfminer"""
+    """Extract text from PDF using pdfminer (pure Python)"""
     try:
         from pdfminer.high_level import extract_text
         text = extract_text(file_path)
@@ -40,23 +40,6 @@ def extract_text_from_pdf(file_path: str) -> str:
     except Exception as e:
         print(f"PDF text extraction error: {e}")
         return ""
-
-def parse_resume_with_pyresparser(file_path: str) -> Dict[str, Any]:
-    """Parse resume using PyResParser with error handling"""
-    try:
-        from pyresparser import ResumeParser
-        data = ResumeParser(file_path).get_extracted_data()
-        return data if data else {}
-    except Exception as e:
-        print(f"PyResParser error: {e}")
-        # Return basic structure as fallback
-        return {
-            'skills': [],
-            'name': '',
-            'email': '',
-            'mobile_number': '',
-            'no_of_pages': 1
-        }
 
 def extract_personal_info(text: str) -> Dict[str, str]:
     """Extract comprehensive personal information"""
@@ -120,22 +103,6 @@ def extract_personal_info(text: str) -> Dict[str, str]:
         candidate = portfolio_match.group(1).strip()
         if '@' not in candidate and 'linkedin' not in candidate and 'github' not in candidate:
             info["portfolio"] = candidate
-
-    # Extract location/address
-    address_tokens = ['address', 'location', 'city', 'province', 'district', 'street', 'road']
-    for line in lines[:12]:
-        low = line.strip().lower()
-        if any(tok in low for tok in address_tokens) and len(line.strip()) > 5:
-            info["location"] = line.strip()
-            info["address"] = line.strip()
-            break
-
-    if not info["location"]:
-        for line in lines[:8]:
-            if ',' in line and len(line.strip()) > 8 and not re.search(r'@', line):
-                info["location"] = line.strip()
-                info["address"] = line.strip()
-                break
 
     return info
 
@@ -212,7 +179,7 @@ def extract_work_experience(text: str) -> List[Dict[str, Any]]:
                         }
 
                 # Extract dates
-                date_match = re.search(r'(\w+\s*\d{4}\s*[-–]\s*\w+\s*\d{4}|\d{4}\s*[-–]\s*\d{4}|\d{4}\s*[-–]\s*Present|Present|Current)', line_clean)
+                date_match = re.search(r'(\d{4}\s*[-–]\s*\d{4}|\d{4}\s*[-–]\s*Present|Present|Current)', line_clean)
                 if date_match and current_job:
                     date_str = date_match.group()
                     dates = re.findall(r'(19|20)\d{2}|Present|Current', date_str)
@@ -305,7 +272,7 @@ def extract_education(text: str) -> List[Dict[str, str]]:
     return education
 
 def extract_skills(text: str) -> Dict[str, List[str]]:
-    """Extract and categorize skills"""
+    """Extract and categorize skills using pure Python"""
     skills = {
         "programming": [],
         "web": [],
@@ -317,26 +284,28 @@ def extract_skills(text: str) -> Dict[str, List[str]]:
     
     skill_categories = {
         "programming": [
-            'python', 'java', 'javascript', 'typescript', 'c++', 'c#', 'php', 'ruby'
+            'python', 'java', 'javascript', 'typescript', 'c++', 'c#', 'php', 'ruby', 'go', 'rust'
         ],
         "web": [
             'html', 'css', 'react', 'angular', 'vue', 'node.js', 'express', 'django', 
-            'flask', 'spring', 'laravel'
+            'flask', 'spring', 'laravel', 'jquery', 'bootstrap'
         ],
         "data": [
-            'sql', 'mysql', 'postgresql', 'mongodb', 'redis',
-            'pandas', 'numpy', 'data analysis', 'machine learning'
+            'sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'oracle',
+            'pandas', 'numpy', 'tensorflow', 'pytorch', 'scikit-learn', 'keras',
+            'tableau', 'power bi', 'data analysis', 'machine learning', 'deep learning'
         ],
         "devops": [
             'aws', 'azure', 'gcp', 'docker', 'kubernetes', 'jenkins', 'gitlab',
-            'terraform', 'linux'
+            'terraform', 'ansible', 'ci/cd', 'linux', 'unix', 'bash'
         ],
         "tools": [
-            'git', 'github', 'gitlab', 'jira', 'docker', 'postman'
+            'git', 'github', 'gitlab', 'jira', 'confluence', 'docker', 'postman',
+            'visual studio', 'eclipse', 'intellij', 'pycharm'
         ],
         "soft_skills": [
             'leadership', 'communication', 'teamwork', 'problem solving', 'critical thinking',
-            'project management', 'agile', 'scrum'
+            'project management', 'agile', 'scrum', 'time management', 'adaptability'
         ]
     }
     
@@ -346,11 +315,8 @@ def extract_skills(text: str) -> Dict[str, List[str]]:
         for keyword in keywords:
             if re.search(r'\b' + re.escape(keyword) + r'\b', text_lower):
                 normalized_name = keyword.title()
-                skills[category].append(normalized_name)
-    
-    # Remove duplicates
-    for category in skills:
-        skills[category] = list(set(skills[category]))
+                if normalized_name not in skills[category]:
+                    skills[category].append(normalized_name)
     
     return skills
 
@@ -395,7 +361,9 @@ def extract_projects(text: str) -> List[Dict[str, Any]]:
                         # Extract technologies from description
                         tech_keywords = ['python', 'java', 'react', 'node', 'sql', 'mongodb', 'aws']
                         found_tech = [tech for tech in tech_keywords if tech in line_clean.lower()]
-                        current_project["technologies"].extend(found_tech)
+                        for tech in found_tech:
+                            if tech.title() not in current_project["technologies"]:
+                                current_project["technologies"].append(tech.title())
                 
                 # Save project
                 if (i + 1 < len(lines) and 
@@ -536,9 +504,6 @@ async def analyze_resume(file: UploadFile = File(...)):
         # Extract all structured information
         print("🔧 Extracting structured information...")
         
-        # Get basic data from pyresparser
-        basic_data = parse_resume_with_pyresparser(temp_path)
-        
         personal_info = extract_personal_info(resume_text)
         summary = extract_summary(resume_text)
         work_experience = extract_work_experience(resume_text)
@@ -597,6 +562,7 @@ async def root():
         "message": "Enhanced Resume Analyzer API", 
         "version": "2.0.0",
         "description": "Extracts structured JSON data from resumes",
+        "engine": "Pure Python (No Rust dependencies)",
         "endpoints": {
             "analyze_resume": "POST /analyze-resume",
             "health": "GET /health",
@@ -623,6 +589,6 @@ async def get_profiles(limit: int = 10):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8001))
+    port = int(os.environ.get("PORT", 8000))
     reload_flag = os.environ.get("DEV_RELOAD", "false").lower() in ("1", "true", "yes")
     uvicorn.run(app, host="0.0.0.0", port=port, reload=reload_flag)
